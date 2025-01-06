@@ -1,5 +1,6 @@
 package inf.ed.cw_ilp.controller;
 
+import inf.ed.cw_ilp.api.LngLatAPI;
 import inf.ed.cw_ilp.data.*;
 import inf.ed.cw_ilp.model.Regions.Position;
 import inf.ed.cw_ilp.model.Regions.Requests;
@@ -15,8 +16,10 @@ import org.springframework.web.bind.annotation.*;
 public class PizzaDroneController {
 
     private final PizzaDroneLogicRepo runrepo;
-    public PizzaDroneController(PizzaDroneLogicRepo runRepo) {
+    private final LngLatAPI LngLatRequest;
+    public PizzaDroneController(PizzaDroneLogicRepo runRepo, LngLatAPI lngLatRequest) {
         this.runrepo = runRepo;
+        this.LngLatRequest = lngLatRequest;
     }
 
     // End-Point 1
@@ -31,7 +34,7 @@ public class PizzaDroneController {
     @PostMapping("/distanceTo")
     public ResponseEntity<Double> returnDistanceTo(@RequestBody Requests.LngLatPairRequest json) {
         // Call the service method to calculate distance
-        ResponseEntity<Double> distance = runrepo.calculateDistance(json);
+        ResponseEntity<Double> distance = LngLatRequest.calculateDistance(json);
         return ResponseEntity.ok(distance.getBody()); // Return HTTP 200 with the distance
     }
 
@@ -39,7 +42,7 @@ public class PizzaDroneController {
     @ResponseStatus(HttpStatus.CREATED)
     @PostMapping("/isCloseTo")
     public ResponseEntity<Boolean> returnIsCloseTo(@RequestBody Requests.LngLatPairRequest json) {
-        return runrepo.isCloseTo(json);
+        return LngLatRequest.isCloseTo(json);
 
     }
 
@@ -47,7 +50,7 @@ public class PizzaDroneController {
     @ResponseStatus(HttpStatus.CREATED)
     @PostMapping("/nextPosition")
     public ResponseEntity<Position> calNextPos(@RequestBody Requests.LngLatAngleRequest json) {
-        return runrepo.nextPosition(json);
+        return LngLatRequest.nextPosition(json);
 
     }
 
@@ -55,7 +58,7 @@ public class PizzaDroneController {
     @ResponseStatus(HttpStatus.CREATED)
     @PostMapping("/isInRegion")
     public ResponseEntity<Boolean> validRegion(@RequestBody Requests.LngLatRegionRequest json) {
-        return runrepo.isWithinRange(json);
+        return LngLatRequest.isWithinRange(json);
     }
 
     // End-point 6
