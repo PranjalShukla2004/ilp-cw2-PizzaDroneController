@@ -1,19 +1,14 @@
 package inf.ed.cw_ilp.data;
 
-import inf.ed.cw_ilp.model.Regions.Requests;
-import inf.ed.cw_ilp.model.Regions.Position;
 import inf.ed.cw_ilp.model.orderRelated.OrderValidationResult;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Repository;
 import inf.ed.cw_ilp.model.orderRelated.Order;
 import inf.ed.cw_ilp.model.orderRelated.Orderstats;
 import inf.ed.cw_ilp.model.orderRelated.creditCardInformation;
 import java.time.LocalDate;
-import java.util.List;
 
 @Repository
-public class PizzaDroneLogicRepo {
+public class OrderValidation {
     //End-point 1
     // End-point to get the student id
     public String uuid() {

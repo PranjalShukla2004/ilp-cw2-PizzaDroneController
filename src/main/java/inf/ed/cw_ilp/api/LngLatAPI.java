@@ -2,6 +2,7 @@ package inf.ed.cw_ilp.api;
 
 import inf.ed.cw_ilp.model.Regions.Position;
 import inf.ed.cw_ilp.model.Regions.Requests;
+import inf.ed.cw_ilp.utils.Constants;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Repository;
@@ -62,33 +63,49 @@ public class LngLatAPI {
         }
     }
 
+    // Helper method for checking if a node is close to a point.
+    public boolean isCloseToPoint(Position Node, Position position) {
+        double lng1 = Node.lng();
+        double lat1 = Node.lat();
+        double lng2 = position.lng();
+        double lat2 = position.lat();
+
+        double distance = calculateEuclideanDistance(lng1, lat1, lng2, lat2);
+
+        return (distance <= 0.00015);
+    }
+
     // End-point 4
     // End-point to get the next Position of the drone each move is constant 0.00015
     private static final double MOVE_DISTANCE = 0.00015;
     public ResponseEntity<Position> nextPosition(Requests.LngLatAngleRequest request) {
-        if (request.start() == null ) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();  // return false for invalid input
+        if (request.start() == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
         }
+
         double startLng = request.start().lng();
         double startLat = request.start().lat();
         double angle = request.angle();
 
-        while(angle<0){
+        // Normalize angle to [0, 360)
+        while (angle < 0) {
             angle += 360;
         }
         angle = angle % 360;
-        if(angle % 22.5 == 0) {
+
+        if (Constants.VALID_ANGLES.contains(angle)) {
             double angleInRadians = Math.toRadians(angle);
-            double deltaLng = MOVE_DISTANCE * Math.cos(angleInRadians);  // Change in longitude
-            double deltaLat = MOVE_DISTANCE * Math.sin(angleInRadians);  // Change in latitude
+            double deltaLng = MOVE_DISTANCE * Math.cos(angleInRadians);
+            double deltaLat = MOVE_DISTANCE * Math.sin(angleInRadians);
             double newLng = startLng + deltaLng;
             double newLat = startLat + deltaLat;
-            return ResponseEntity.ok(new Position(newLng, newLat));  // 200 OK with the new position in the response body
-        }
-        else {
+
+            return ResponseEntity.ok(new Position(newLng, newLat)); // 200 OK
+        } else {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
         }
     }
+
 
     //End-point 5
     // End-point to check if a given position is within the central-area

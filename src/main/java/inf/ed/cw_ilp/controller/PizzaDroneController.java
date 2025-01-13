@@ -1,7 +1,9 @@
 package inf.ed.cw_ilp.controller;
 
+import inf.ed.cw_ilp.api.DynamicDataService;
 import inf.ed.cw_ilp.api.LngLatAPI;
 import inf.ed.cw_ilp.data.*;
+import inf.ed.cw_ilp.model.pathFinder.*;
 import inf.ed.cw_ilp.model.Regions.Position;
 import inf.ed.cw_ilp.model.Regions.Requests;
 import inf.ed.cw_ilp.model.orderRelated.Order;
@@ -11,15 +13,19 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("")
 public class PizzaDroneController {
 
     private final PizzaDroneLogicRepo runrepo;
     private final LngLatAPI LngLatRequest;
-    public PizzaDroneController(PizzaDroneLogicRepo runRepo, LngLatAPI lngLatRequest) {
+    private final DynamicDataService dds;
+    public PizzaDroneController(PizzaDroneLogicRepo runRepo, LngLatAPI lngLatRequest, DynamicDataService dds) {
         this.runrepo = runRepo;
         this.LngLatRequest = lngLatRequest;
+        this.dds = dds;
     }
 
     // End-Point 1
@@ -65,7 +71,7 @@ public class PizzaDroneController {
     @ResponseStatus(HttpStatus.CREATED)
     @PostMapping("/validateOrder")
     public ResponseEntity<OrderValidationResult> validateOrder(@RequestBody Order order){
-        PizzaDroneLogicRepo.OrderValidationService validationService = new PizzaDroneLogicRepo.OrderValidationService();
+        OrderValidation.OrderValidationService validationService = new OrderValidation.OrderValidationService();
         OrderValidationResult result = validationService.validateOrder(order);
         if (result.orderStatus.equals(Orderstats.OrderStatus.INVALID.name())) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(result);
@@ -74,6 +80,44 @@ public class PizzaDroneController {
 
     }
 
+    @ResponseStatus(HttpStatus.CREATED)
+    @PostMapping("/calcDeliveryPath")
+    public ResponseEntity<?> calcDeliveryPath(@RequestBody Order order) {
+        OrderValidation.OrderValidationService validationService = new OrderValidation.OrderValidationService();
+        OrderValidationResult validationResult = validationService.validateOrder(order);
+
+        if (validationResult.orderStatus.equals(Orderstats.OrderStatus.INVALID.name())) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(validationResult);
+        }
+
+        nameData.NamedRegion centralArea = dds.fetchCentralArea();
+        List<nameData.NamedRegion> noFlyZones = dds.fetchNoFlyZones();
+
+        Position start = new Position(
+                order.getRestaurantLng(),  // or however you store it
+                order.getRestaurantLat()
+        );
+
+        Position end = new Position(
+                order.getDeliveryLng(),
+                order.getDeliveryLat()
+        );
+
+        // 4) Build A_Star with these positions + DDS data
+        A_Star aStar = new A_Star(start, end, centralArea, noFlyZones);
+
+        // 5) Calculate the path
+        List<Position> path = aStar.calculatePath();
+
+        // 6) If no path, respond with 400
+        if (path.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body("No valid path found for this order");
+        }
+
+        // 7) Otherwise, return 200 (or 201) with the path array
+        return ResponseEntity.ok(path);
+    }
 
 
 }

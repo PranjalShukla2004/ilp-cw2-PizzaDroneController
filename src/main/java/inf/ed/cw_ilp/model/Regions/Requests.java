@@ -15,4 +15,12 @@ public record Requests(){
      * Represents a request with a position and a region.
      */
     public record LngLatRegionRequest(Position position, Region region) {}
+
+    public static LngLatAngleRequest combine(double startCoord, double endCoord, double angle) {
+        // 1) Wrap start and end in a Position
+        Position pos = new Position(startCoord, endCoord);
+
+        // 2) Create the LngLatAngleRequest
+        return new LngLatAngleRequest(pos, angle);
+    }
 }
