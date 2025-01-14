@@ -119,16 +119,28 @@ public class LngLatAPI {
         return ResponseEntity.ok(withinRange);
     }
 
-    public boolean isPointInRegion(Position position, List<Position> vertices){
+    public boolean isPointInRegion(Position position, List<Position> vertices) {
         int size = vertices.size();
         boolean inside = false;
+        double x = position.lng();
+        double y = position.lat();
 
-        for(int i = 0, j = size; i < size; j = i++){
-            Position p = vertices.get(i);
-            Position n = vertices.get(j);
-            if (p.lat() > position.lat() != n.lat() > position.lat() &&
-                    (position.lng() < (n.lng() - p.lng()) *
-                            (position.lat() - p.lat()) / (n.lat() - p.lat() + p.lng()) ))   {
+        // Typical polygon loop: j starts at the last index (size-1)
+        for (int i = 0, j = size - 1; i < size; j = i++) {
+            Position pi = vertices.get(i);
+            Position pj = vertices.get(j);
+
+            double xi = pi.lng();
+            double yi = pi.lat();
+            double xj = pj.lng();
+            double yj = pj.lat();
+
+            // The standard ray-casting check:
+            boolean intersect =
+                    ((yi > y) != (yj > y)) // edge straddles the horizontal line?
+                            && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+
+            if (intersect) {
                 inside = !inside;
             }
         }
@@ -140,8 +152,10 @@ public class LngLatAPI {
             return false;
         }
         List<Position> vertices = request.region().vertices();
+        // A polygon must have at least 3 vertices
         return vertices.size() >= 3;
     }
+
 
     private static final double EPS = 1e-9;
 

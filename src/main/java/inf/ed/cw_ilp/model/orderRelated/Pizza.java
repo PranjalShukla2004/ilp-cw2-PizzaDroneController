@@ -8,4 +8,8 @@ public class Pizza {
         this.name = name;
         this.priceInPence = priceInPence;
     }
+
+    public long getPriceInPence() { return priceInPence; }
+
+    public String getName() { return name; }
 }

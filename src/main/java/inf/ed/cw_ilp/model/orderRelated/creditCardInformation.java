@@ -10,4 +10,8 @@ public class creditCardInformation {
         this.creditCardExpiry = creditCardExpiry;
         this.cvv = cvv;
     }
+    public String getCreditCardExpiry() {
+        return this.creditCardExpiry;
+    }
+
 }

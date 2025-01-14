@@ -9,6 +9,7 @@ import inf.ed.cw_ilp.model.Regions.Requests;
 import inf.ed.cw_ilp.model.orderRelated.Order;
 import inf.ed.cw_ilp.model.orderRelated.OrderValidationResult;
 import inf.ed.cw_ilp.model.orderRelated.Orderstats;
+import inf.ed.cw_ilp.utils.Constants;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -19,10 +20,10 @@ import java.util.List;
 @RequestMapping("")
 public class PizzaDroneController {
 
-    private final PizzaDroneLogicRepo runrepo;
+    private final OrderValidation runrepo;
     private final LngLatAPI LngLatRequest;
     private final DynamicDataService dds;
-    public PizzaDroneController(PizzaDroneLogicRepo runRepo, LngLatAPI lngLatRequest, DynamicDataService dds) {
+    public PizzaDroneController(OrderValidation runRepo, LngLatAPI lngLatRequest, DynamicDataService dds) {
         this.runrepo = runRepo;
         this.LngLatRequest = lngLatRequest;
         this.dds = dds;
@@ -31,7 +32,7 @@ public class PizzaDroneController {
     // End-Point 1
     @GetMapping("/uuid")
     String return_id(){
-        return runrepo.uuid();
+        return "s2427231";
     }
 
 
@@ -71,7 +72,7 @@ public class PizzaDroneController {
     @ResponseStatus(HttpStatus.CREATED)
     @PostMapping("/validateOrder")
     public ResponseEntity<OrderValidationResult> validateOrder(@RequestBody Order order){
-        OrderValidation.OrderValidationService validationService = new OrderValidation.OrderValidationService();
+        OrderValidation.OrderValidationService validationService = new OrderValidation.OrderValidationService(dds);
         OrderValidationResult result = validationService.validateOrder(order);
         if (result.orderStatus.equals(Orderstats.OrderStatus.INVALID.name())) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(result);
@@ -83,41 +84,54 @@ public class PizzaDroneController {
     @ResponseStatus(HttpStatus.CREATED)
     @PostMapping("/calcDeliveryPath")
     public ResponseEntity<?> calcDeliveryPath(@RequestBody Order order) {
-        OrderValidation.OrderValidationService validationService = new OrderValidation.OrderValidationService();
+
+        // 1) Validate
+        OrderValidation.OrderValidationService validationService =
+                new OrderValidation.OrderValidationService(dds);
         OrderValidationResult validationResult = validationService.validateOrder(order);
 
+        // 2) If invalid, return 400
         if (validationResult.orderStatus.equals(Orderstats.OrderStatus.INVALID.name())) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(validationResult);
         }
 
+        // 3) Fetch central + noFly
         nameData.NamedRegion centralArea = dds.fetchCentralArea();
         List<nameData.NamedRegion> noFlyZones = dds.fetchNoFlyZones();
 
-        Position start = new Position(
-                order.getRestaurantLng(),  // or however you store it
-                order.getRestaurantLat()
-        );
+        // 4) Retrieve matched restaurants
+        List<nameData.Restaurant> matched = validationResult.matchedRestaurants;
+        if (matched == null || matched.size() != 1) {
+            // Should not happen if it's "VALID" => but let's be safe:
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body("No single matched restaurant found");
+        }
 
-        Position end = new Position(
-                order.getDeliveryLng(),
-                order.getDeliveryLat()
-        );
+        // 5) We have exactly one match
+        nameData.Restaurant matchedRestaurant = matched.get(0);
 
-        // 4) Build A_Star with these positions + DDS data
+        // 6) Start from the restaurant's location
+        Position start = matchedRestaurant.getLocation();
+
+        // 7) The end is Appleton
+        Position end = new Position(Constants.APPLETON_TOWER.lng(),
+                Constants.APPLETON_TOWER.lat());
+
+        // 8) Build A_Star, run it
         A_Star aStar = new A_Star(start, end, centralArea, noFlyZones);
-
-        // 5) Calculate the path
         List<Position> path = aStar.calculatePath();
 
-        // 6) If no path, respond with 400
+        // 9) If no path, respond 400
         if (path.isEmpty()) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body("No valid path found for this order");
         }
 
-        // 7) Otherwise, return 200 (or 201) with the path array
+        // 10) Otherwise, return 200 OK with path
         return ResponseEntity.ok(path);
     }
+
+
 
 
 }
