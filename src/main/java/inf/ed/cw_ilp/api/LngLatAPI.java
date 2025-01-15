@@ -1,13 +1,13 @@
 package inf.ed.cw_ilp.api;
 
 import inf.ed.cw_ilp.model.Regions.Position;
+import inf.ed.cw_ilp.model.Regions.Region;
 import inf.ed.cw_ilp.model.Regions.Requests;
+import inf.ed.cw_ilp.model.pathFinder.nameData;
 import inf.ed.cw_ilp.utils.Constants;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Repository;
-
-import java.util.List;
 
 @Repository
 public class LngLatAPI {
@@ -109,94 +109,91 @@ public class LngLatAPI {
 
     //End-point 5
     // End-point to check if a given position is within the central-area
-    public ResponseEntity<Boolean> isWithinRange(Requests.LngLatRegionRequest request) {
-        if (!validateRegion(request)) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
-        }
-        Position position = request.position();
-        List<Position> vertices = request.region().vertices();
-        boolean withinRange = isPointInRegion(position, vertices);
-        return ResponseEntity.ok(withinRange);
+    public boolean isInsideRegion(Position position, Region region) {
+        Position[] vertices = region.vertices();
+        return isPointInsidePolygon(position, vertices);
     }
 
-    public boolean isPointInRegion(Position position, List<Position> vertices) {
-        int size = vertices.size();
-        boolean inside = false;
-        double x = position.lng();
-        double y = position.lat();
-
-        // Typical polygon loop: j starts at the last index (size-1)
-        for (int i = 0, j = size - 1; i < size; j = i++) {
-            Position pi = vertices.get(i);
-            Position pj = vertices.get(j);
-
-            double xi = pi.lng();
-            double yi = pi.lat();
-            double xj = pj.lng();
-            double yj = pj.lat();
-
-            // The standard ray-casting check:
-            boolean intersect =
-                    ((yi > y) != (yj > y)) // edge straddles the horizontal line?
-                            && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
-
-            if (intersect) {
-                inside = !inside;
-            }
+    public boolean isPointInRegion(Position position, nameData.NamedRegion region) {
+        if (region == null || region.getCoordinates() == null || region.getCoordinates().length == 0) {
+            throw new IllegalArgumentException("Region vertices are null or empty");
         }
-        return inside;
+
+        Position[] vertices = region.getCoordinates();
+        return isPointInsidePolygon(position, vertices);
     }
 
-    public boolean validateRegion(Requests.LngLatRegionRequest request) {
-        if (request == null || request.region() == null || request.position() == null) {
-            return false;
-        }
-        List<Position> vertices = request.region().vertices();
-        // A polygon must have at least 3 vertices
-        return vertices.size() >= 3;
-    }
+    private boolean isPointInsidePolygon(Position position, Position[] vertices) {
+        int count = 0;
 
+        // Check if the point is on any edge first
+        for (int i = 0; i < vertices.length; i++) {
+            Position currentVertex = vertices[i];
+            Position nextVertex = vertices[(i + 1) % vertices.length];
 
-    private static final double EPS = 1e-9;
-
-    // Helper function to check if a point is outside the no-fly zone - specifically if the point is on the edge ?
-    private static boolean OnEdge(Position position, Position currentVertex, Position nextVertex) {
-        double x = position.lng();
-        double y = position.lat();
-        double x1 = currentVertex.lng();
-        double y1 = currentVertex.lat();
-        double x2 = nextVertex.lng();
-        double y2 = nextVertex.lat();
-        
-        if (x < Math.min(x1, x2) - EPS || x > Math.max(x1, x2) + EPS) {
-            return false;
-        }
-        
-        double dx = x2 - x1;
-        if (Math.abs(dx) < EPS) {
-            // if it is a vertical segment, check if position is "close enough" in lng and if its lat is between y1 and y2
-            if (Math.abs(x - x1) < EPS
-                    && y >= Math.min(y1, y2) - EPS
-                    && y <= Math.max(y1, y2) + EPS) {
+            // Check if the point is on the edge
+            if (isPointOnEdge(position, currentVertex, nextVertex)) {
                 return true;
             }
-            return false;
         }
 
-        // Calculate slope (dy/dx) and intercept
-        double slope = (y2 - y1) / dx;
+        // Ray-casting algorithm for point inside polygon
+        for (int i = 0; i < vertices.length; i++) {
+            Position currentVertex = vertices[i];
+            Position nextVertex = vertices[(i + 1) % vertices.length];
 
-        // The line equation is y = slope*(x - x1) + y1 derived from [y-y1 / x-x1 = m]
-        double expectedY = slope * (x - x1) + y1;
+            if (isPointInsideRay(position, currentVertex, nextVertex)) {
+                count++;
+            }
+        }
+        return count % 2 == 1;  // If odd, point is inside; if even, point is outside
+    }
 
-        // Check if position.lat() is very close to expectedY and ensure the lat is within bounding box
-        if (Math.abs(y - expectedY) < EPS
-                && y >= Math.min(y1, y2) - EPS
-                && y <= Math.max(y1, y2) + EPS) {
-            return true;
+    private boolean isPointOnEdge(Position position, Position currentVertex, Position nextVertex) {
+        // Check if the point is on the horizontal edge
+
+        boolean isHorizontal = currentVertex.lat() == nextVertex.lat();
+        boolean isVertical = currentVertex.lng() == nextVertex.lng();
+
+        if (isHorizontal) {
+            // If the edge is horizontal, check if the point's latitude matches and its longitude is between the edge's bounds
+            return position.lat() == currentVertex.lat() &&
+                    position.lng() >= Math.min(currentVertex.lng(), nextVertex.lng()) &&
+                    position.lng() <= Math.max(currentVertex.lng(), nextVertex.lng());
+        }
+
+        if (isVertical) {
+            // If the edge is vertical, check if the point's longitude matches and its latitude is between the edge's bounds
+            return position.lng() == currentVertex.lng() &&
+                    position.lat() >= Math.min(currentVertex.lat(), nextVertex.lat()) &&
+                    position.lat() <= Math.max(currentVertex.lat(), nextVertex.lat());
+        }
+
+        // General case: non-horizontal and non-vertical edge, check the slope of the line
+        boolean firstCondition = position.lng() > Math.min(currentVertex.lng(), nextVertex.lng());
+        boolean secondCondition = position.lng() <= Math.max(currentVertex.lng(), nextVertex.lng());
+        if (firstCondition && secondCondition) {
+            // Calculate the slope of the line between current and next vertex
+            double slope = (nextVertex.lat() - currentVertex.lat()) / (nextVertex.lng() - currentVertex.lng());
+            double latitude = slope * (position.lng() - currentVertex.lng()) + currentVertex.lat();
+            if (position.lat() == latitude) {
+                return true;
+            }
         }
 
         return false;
     }
+
+
+    private boolean isPointInsideRay(Position position, Position currentVertex, Position nextVertex) {
+        boolean latitudeCondition = position.lat() <= Math.max(nextVertex.lat(), currentVertex.lat()) &&
+                position.lat() > Math.min(nextVertex.lat(), currentVertex.lat());
+
+        double latitudeFraction = ((position.lat() - currentVertex.lat()) / (nextVertex.lat() - currentVertex.lat())) * (nextVertex.lng() - currentVertex.lng());
+        boolean longitudeCondition = position.lng() < (currentVertex.lng() + latitudeFraction);
+
+        return longitudeCondition && latitudeCondition;
+    }
+
 
 }

@@ -2,8 +2,9 @@ package inf.ed.cw_ilp.model.pathFinder;
 
 import inf.ed.cw_ilp.api.LngLatAPI;
 import inf.ed.cw_ilp.model.Regions.*;
-import inf.ed.cw_ilp.model.pathFinder.nameData;
 import inf.ed.cw_ilp.utils.Constants;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 
 import java.util.*;
@@ -19,6 +20,7 @@ public class A_Star {
     private final Position end;
     private final nameData.NamedRegion centralArea;
     private final List<nameData.NamedRegion> noFlyZones;
+    private static final Logger log = LoggerFactory.getLogger(A_Star.class);
 
     /**
      * Constructs an A_Star object with the given start, end points, central area, and no-fly zones.
@@ -43,6 +45,13 @@ public class A_Star {
         LngLatAPI lngLatAPI = new LngLatAPI();
         PriorityQueue<Node> openSet = new PriorityQueue<>(new NodePriorityComparator());
         Map<Position, Node> visited = new HashMap<>();
+        log.info("Start Position: {}", start);  // Log start position
+        log.info("End Position: {}", end);  // Log end position
+        // Validate start and end positions
+        if (start == null || end == null) {
+            throw new IllegalArgumentException("Start or end position is null");
+        }
+
 
         Requests.LngLatPairRequest distanceRequest = new Requests.LngLatPairRequest(
                 new Position(start.lng(), start.lat()),   // position1
@@ -52,13 +61,15 @@ public class A_Star {
         ResponseEntity<Double> response = lngLatAPI.calculateDistance(distanceRequest);
         Double dist = response.getBody();
         if (dist == null) dist = 0.0;
+
         Node startNode = new Node(null, start, 0, dist, Constants.HOVER_ANGLE);
         openSet.add(startNode);
         Node currentNode;
 
         while (!openSet.isEmpty()) {
             currentNode = openSet.poll();
-            if (lngLatAPI.isCloseToPoint(currentNode.getLngLat(), end)) {
+            if(currentNode == null) continue;
+            if (lngLatAPI.isCloseToPoint(currentNode.getPosition(), end)) {
                 return constructPath(currentNode);
             }
             List<Node> neighbors = getNeighbors(currentNode, lngLatAPI);
@@ -72,7 +83,7 @@ public class A_Star {
     private List<Position> constructPath(Node currentNode) {
         List<Position> path = new ArrayList<>();
         while (currentNode != null) {
-            path.add(0, currentNode.getLngLat());
+            path.addFirst(currentNode.getPosition());
             currentNode = currentNode.getParent();
         }
         return path;
@@ -87,18 +98,14 @@ public class A_Star {
     ) {
         for (Node neighbor : neighbors) {
             // If position is already in visited, check if we found a smaller path
-            if (visited.containsKey(neighbor.getLngLat())) {
-                if (neighbor.get_net_cost() < visited.get(neighbor.getLngLat()).get_net_cost()) {
-                    visited.put(neighbor.getLngLat(), neighbor);
+            if (visited.containsKey(neighbor.getPosition())) {
+                if (neighbor.get_net_cost() < visited.get(neighbor.getPosition()).get_net_cost()) {
+                    visited.put(neighbor.getPosition(), neighbor);
                 } else {
                     continue;
                 }
             }
-            Requests.LngLatPairRequest distanceRequest = new Requests.LngLatPairRequest(
-                    currentNode.getLngLat(),
-                    neighbor.getLngLat()
-            );
-            Requests.LngLatPairRequest distance = new Requests.LngLatPairRequest(currentNode.getLngLat(), neighbor.getLngLat());
+            Requests.LngLatPairRequest distance = new Requests.LngLatPairRequest(currentNode.getPosition(), neighbor.getPosition());
             ResponseEntity<Double> distResponse = lngLatAPI.calculateDistance(distance);
             Double distBetween = distResponse.getBody();
             if (distBetween == null) {
@@ -108,7 +115,7 @@ public class A_Star {
             double newG = currentNode.get_start_cost() + distBetween;
 
             Requests.LngLatPairRequest endRequest =
-                    new Requests.LngLatPairRequest(neighbor.getLngLat(), end);
+                    new Requests.LngLatPairRequest(neighbor.getPosition(), end);
 
             ResponseEntity<Double> endDistResponse = lngLatAPI.calculateDistance(endRequest);
             Double newH = endDistResponse.getBody();
@@ -119,29 +126,30 @@ public class A_Star {
             // Create a new node with updated info on how far the end point is...
             Node newNode = new Node(
                     currentNode,
-                    neighbor.getLngLat(),
+                    neighbor.getPosition(),
                     newG,
                     newH,
                     neighbor.getAngle()
             );
 
             openSet.add(newNode);
-            visited.put(newNode.getLngLat(), newNode);
+            visited.put(newNode.getPosition(), newNode);
         }
     }
 
         private List<Node> getNeighbors(Node currentNode, LngLatAPI LngLatAPI) {
             List<Node> neighbors = new ArrayList<>();
-            boolean currentInCentral = LngLatAPI.isPointInRegion(currentNode.getLngLat(), (List<Position>) centralArea);
+            log.info("CentralArea coords are: {}", centralArea);
+            boolean currentInCentral = LngLatAPI.isPointInRegion(currentNode.getPosition(), centralArea);
 
             for (Double angle : Constants.VALID_ANGLES) {
-                Requests.LngLatAngleRequest param = new Requests.LngLatAngleRequest(currentNode.getLngLat(), angle);
+                Requests.LngLatAngleRequest param = new Requests.LngLatAngleRequest(currentNode.getPosition(), angle);
                 ResponseEntity<Position> response = LngLatAPI.nextPosition(param);
                 Position nextPosition = response.getBody();
-                boolean nextInCentral = LngLatAPI.isPointInRegion(nextPosition, (List<Position>) centralArea);
+                boolean nextInCentral = LngLatAPI.isPointInRegion(nextPosition, centralArea);
 
                 Requests.LngLatPairRequest distRequest1 = new Requests.LngLatPairRequest(
-                        currentNode.getLngLat(),
+                        currentNode.getPosition(),
                         nextPosition
                 );
 
@@ -182,7 +190,8 @@ public class A_Star {
                 return false;
             }
             for (nameData.NamedRegion noFlyZone : noFlyZones) {
-                if (LngLatAPI.isPointInRegion(nextPosition, (List<Position>) noFlyZone)) {
+                log.info("noflyZone: {}", noFlyZone);
+                if (LngLatAPI.isPointInRegion(nextPosition, noFlyZone)) {
                     return false;
                 }
             }

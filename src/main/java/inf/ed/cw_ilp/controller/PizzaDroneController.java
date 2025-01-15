@@ -3,6 +3,7 @@ package inf.ed.cw_ilp.controller;
 import inf.ed.cw_ilp.api.DynamicDataService;
 import inf.ed.cw_ilp.api.LngLatAPI;
 import inf.ed.cw_ilp.data.*;
+import inf.ed.cw_ilp.model.Regions.Region;
 import inf.ed.cw_ilp.model.pathFinder.*;
 import inf.ed.cw_ilp.model.Regions.Position;
 import inf.ed.cw_ilp.model.Regions.Requests;
@@ -10,6 +11,8 @@ import inf.ed.cw_ilp.model.orderRelated.Order;
 import inf.ed.cw_ilp.model.orderRelated.OrderValidationResult;
 import inf.ed.cw_ilp.model.orderRelated.Orderstats;
 import inf.ed.cw_ilp.utils.Constants;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -23,6 +26,7 @@ public class PizzaDroneController {
     private final OrderValidation runrepo;
     private final LngLatAPI LngLatRequest;
     private final DynamicDataService dds;
+    private static final Logger log = LoggerFactory.getLogger(PizzaDroneController.class);
     public PizzaDroneController(OrderValidation runRepo, LngLatAPI lngLatRequest, DynamicDataService dds) {
         this.runrepo = runRepo;
         this.LngLatRequest = lngLatRequest;
@@ -64,8 +68,10 @@ public class PizzaDroneController {
     // End-point 5
     @ResponseStatus(HttpStatus.CREATED)
     @PostMapping("/isInRegion")
-    public ResponseEntity<Boolean> validRegion(@RequestBody Requests.LngLatRegionRequest json) {
-        return LngLatRequest.isWithinRange(json);
+    public boolean validRegion(@RequestBody Requests.LngLatRegionRequest json) {
+        Position position = json.position();
+        Region region = json.region();
+        return LngLatRequest.isInsideRegion(position, region);
     }
 
     // End-point 6
@@ -99,6 +105,10 @@ public class PizzaDroneController {
         nameData.NamedRegion centralArea = dds.fetchCentralArea();
         List<nameData.NamedRegion> noFlyZones = dds.fetchNoFlyZones();
 
+        if (centralArea == null || centralArea.getCoordinates() == null) {
+            log.error("Central area is not fetched correctly");
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Central area fetch failed");
+        }
         // 4) Retrieve matched restaurants
         List<nameData.Restaurant> matched = validationResult.matchedRestaurants;
         if (matched == null || matched.size() != 1) {
@@ -130,8 +140,6 @@ public class PizzaDroneController {
         // 10) Otherwise, return 200 OK with path
         return ResponseEntity.ok(path);
     }
-
-
 
 
 }

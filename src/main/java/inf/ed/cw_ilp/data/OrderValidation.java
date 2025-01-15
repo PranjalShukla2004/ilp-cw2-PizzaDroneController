@@ -72,9 +72,6 @@ public class OrderValidation {
             List<nameData.Restaurant> matchingOpenRestaurants = new ArrayList<>();
 
             for (nameData.Restaurant restaurant : allRestaurants) {
-                // 1) Check if restaurant is open for the day
-                log.info("Checking restaurant: {}", restaurant.getName());
-                log.info("Day of week: {}, open days: {}", dayOfWeek, restaurant.getOpeningDays());
                 if (!restaurant.getOpeningDays().contains(dayOfWeek)) {
                     continue; // not open
                 }

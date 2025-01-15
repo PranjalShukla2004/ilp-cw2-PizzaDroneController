@@ -14,13 +14,15 @@ public class Node {
      * Constructs a Node object with the given parameters.
      *
      * @param parent The parent node in the path.
-     * @param lngLat The geographical coordinates of the node.
+     * @param position The geographical coordinates of the node.
      * @param start_cost      The cost from the start node to this node.
      * @param heuristic_cost      The heuristic cost from this node to the goal node.
      * @param angle  The angle associated with the move to this node.
      */
-    public Node(Node parent, Position lngLat, double start_cost, double heuristic_cost, double angle) {
+    public Node(Node parent, Position position, double start_cost, double heuristic_cost, double angle) {
+
         this.parent = parent;
+        this.position = position;
         this.start_cost = start_cost;
         this.heuristic_cost = heuristic_cost;
         this.net_cost = start_cost + heuristic_cost;
@@ -31,7 +33,7 @@ public class Node {
         return parent;
     }
 
-    public Position getLngLat() {
+    public Position getPosition() {
         return position;
     }
 
