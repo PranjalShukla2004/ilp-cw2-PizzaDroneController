@@ -2,7 +2,7 @@ package inf.ed.cw_ilp.controller;
 
 import inf.ed.cw_ilp.api.DynamicDataService;
 import inf.ed.cw_ilp.api.LngLatAPI;
-import inf.ed.cw_ilp.data.*;
+import inf.ed.cw_ilp.api.OrderValidation;
 import inf.ed.cw_ilp.model.Regions.Region;
 import inf.ed.cw_ilp.model.pathFinder.*;
 import inf.ed.cw_ilp.model.Regions.Position;
@@ -141,5 +141,57 @@ public class PizzaDroneController {
         return ResponseEntity.ok(path);
     }
 
-
-}
+//    @PostMapping("/calcDeliveryPathAsGeoJson")
+//    public ResponseEntity<String> calcDeliveryPathAsGeoJson(@RequestBody Order jsonRequest) {
+//        try {
+//            // Call the calcDeliveryPath method to get the delivery path
+//            ResponseEntity<Position[]> pathResponse = calcDeliveryPath(jsonRequest);
+//            Position[] path = pathResponse.getBody();
+//
+//            // If no path, return a bad request
+//            if (path == null || path.length == 0) {
+//                return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+//            }
+//
+//            // List to store unique path coordinates
+//            List<double[]> pathCoordinates = new ArrayList<>();
+//
+//            // Filter the path to remove duplicates (hovering steps)
+//            for (int i = 0; i < path.length; i++) {
+//                if (i == 0 || !path[i].equals(path[i - 1])) {
+//                    pathCoordinates.add(new double[]{path[i].lng(), path[i].lat()});
+//                }
+//            }
+//
+//            // Build the GeoJSON structure
+//            Map<String, Object> pathFeature = new HashMap<>();
+//            pathFeature.put("type", "Feature");
+//
+//            Map<String, Object> pathGeometry = new HashMap<>();
+//            pathGeometry.put("type", "LineString");
+//            pathGeometry.put("coordinates", pathCoordinates);
+//
+//            pathFeature.put("geometry", pathGeometry);
+//            pathFeature.put("properties", Map.of(
+//                    "type", "DeliveryPath",
+//                    "stroke", "#0000FF" // You can change the stroke color if necessary
+//            ));
+//
+//            Map<String, Object> geoJson = new HashMap<>();
+//            geoJson.put("type", "FeatureCollection");
+//
+//            List<Map<String, Object>> features = new ArrayList<>();
+//            features.add(pathFeature);
+//            geoJson.put("features", features);
+//
+//            // Convert the GeoJSON map to a JSON string
+//            String geoJsonString = new Gson().toJson(geoJson);
+//
+//            // Return the GeoJSON string
+//            return new ResponseEntity<>(geoJsonString, HttpStatus.OK);
+//
+//        } catch (Exception e) {
+//            // Return an error response in case of any exception
+//            return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+//        }
+    }
