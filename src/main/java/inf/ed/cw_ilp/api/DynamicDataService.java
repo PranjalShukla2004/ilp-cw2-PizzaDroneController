@@ -33,7 +33,6 @@ public class DynamicDataService {
                 .retrieve()
                 .bodyToMono(nameData.NamedRegion.class)
                 .block();
-        log.info("Fetched Central Area: {}", centralArea);
         return centralArea;
     }
     // list of different restaurants

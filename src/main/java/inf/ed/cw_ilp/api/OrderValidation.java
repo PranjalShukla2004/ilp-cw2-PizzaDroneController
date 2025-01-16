@@ -30,6 +30,7 @@ public class OrderValidation {
 
         public OrderValidationResult validateOrder(Order order) {
 
+            // (1) Existing checks (empty order, max pizzas, valid credit card, etc.)
             if (order.pizzasInOrder == null || order.pizzasInOrder.isEmpty()) {
                 return new OrderValidationResult(
                         Orderstats.OrderStatus.INVALID.name(),
@@ -77,96 +78,111 @@ public class OrderValidation {
                 }
             }
 
-                // order date to day-of-week
-                LocalDate date;
-                try {
-                    date = LocalDate.parse(order.orderDate);
-                } catch (DateTimeParseException e) {
-                    return new OrderValidationResult(
-                            Orderstats.OrderStatus.INVALID.name(),
-                            "ORDER_DATE_PARSE_ERROR"
-                    );
+            // (2) Parse order date to day-of-week
+            LocalDate date;
+            try {
+                date = LocalDate.parse(order.orderDate);
+            } catch (DateTimeParseException e) {
+                return new OrderValidationResult(
+                        Orderstats.OrderStatus.INVALID.name(),
+                        "ORDER_DATE_PARSE_ERROR"
+                );
+            }
+            String dayOfWeek = date.getDayOfWeek().toString();
+            List<nameData.Restaurant> allRestaurants = dds.fetchRestaurants();
+
+            boolean dayOpen = false;
+            boolean pizzasOk = false;
+            boolean priceMatch = false; // Flag to check if price matches
+
+            List<nameData.Restaurant> matchingOpenRestaurants = new ArrayList<>();
+
+            for (nameData.Restaurant restaurant : allRestaurants) {
+                if (!restaurant.getOpeningDays().contains(dayOfWeek)) {
+                    continue; // Not open today
                 }
-                String dayOfWeek = date.getDayOfWeek().toString();
-                List<nameData.Restaurant> allRestaurants = dds.fetchRestaurants();
+                dayOpen = true;
 
-                // Track flags to see how far each restaurant gets in the checks
-                boolean dayOpen = false;
-                boolean pizzasOk = false;
+                long sumPrices = 0;
+                boolean allPizzasFound = true;
 
-                List<nameData.Restaurant> matchingOpenRestaurants = new ArrayList<>();
-
-                for (nameData.Restaurant restaurant : allRestaurants) {
-                    if (!restaurant.getOpeningDays().contains(dayOfWeek)) {
-                        continue; // not open
+                // Check if all pizzas in the order appear on the restaurant's menu
+                for (Pizza orderedPizza : order.pizzasInOrder) {
+                    Optional<Pizza> maybeMenuPizza = restaurant.getMenu().stream()
+                            .filter(menuPizza -> menuPizza.getName().equalsIgnoreCase(orderedPizza.getName()))
+                            .findFirst();
+                    if (maybeMenuPizza.isPresent()) {
+                        sumPrices += maybeMenuPizza.get().getPriceInPence();
+                    } else {
+                        allPizzasFound = false;
+                        break;
                     }
-                    dayOpen = true;
+                }
 
-                    // Check if all pizzas in the order appear on this restaurant’s menu
-                    long sumPrices = 0;
-                    boolean allPizzasFound = true;
-                    for (Pizza orderedPizza : order.pizzasInOrder) {
-                        Optional<Pizza> maybeMenuPizza = restaurant.getMenu().stream()
-                                .filter(menuPizza -> menuPizza.getName().equalsIgnoreCase(orderedPizza.getName()))
-                                .findFirst();
-                        if (maybeMenuPizza.isPresent()) {
-                            sumPrices += maybeMenuPizza.get().getPriceInPence();
-                        } else {
-                            allPizzasFound = false;
-                            break;
-                        }
-                    }
-                    if (!allPizzasFound) {
-                        continue;
-                    }
-                    pizzasOk = true;
+                // If some pizzas weren't found in the restaurant menu, continue to next restaurant
+                if (!allPizzasFound) {
+                    continue;
+                }
+                pizzasOk = true;
 
-                    long totalPriceWithDelivery = sumPrices + DELIVERY_COST;  // DELIVERY_COST is 100
+                // Check if the sum of pizza prices in the order matches the restaurant menu prices
+                if (sumPrices == order.pizzasInOrder.stream().mapToLong(Pizza::getPriceInPence).sum()) {
+                    priceMatch = true;
+                }
 
+                // Add restaurant to matching list if price matches
+                if (priceMatch) {
+                    long totalPriceWithDelivery = sumPrices + DELIVERY_COST; // DELIVERY_COST is 100
                     if (totalPriceWithDelivery == order.priceTotalInPence) {
                         matchingOpenRestaurants.add(restaurant);
                     }
                 }
+            }
 
-                if (matchingOpenRestaurants.isEmpty()) {
-                    if (!dayOpen) {
-                        return new OrderValidationResult(
-                                Orderstats.OrderStatus.INVALID.name(),
-                                Orderstats.OrderValidationCode.RESTAURANT_CLOSED.name()
-                        );
-                    } else if (dayOpen && !pizzasOk) {
-                        // We had an open restaurant but the pizzas never matched
-                        return new OrderValidationResult(
-                                Orderstats.OrderStatus.INVALID.name(),
-                                Orderstats.OrderValidationCode.PIZZA_NOT_DEFINED.name()
-                        );
-                    } else {
-                        // We found an open restaurant with correct pizzas, but never matched the total
-                        return new OrderValidationResult(
-                                Orderstats.OrderStatus.INVALID.name(),
-                                Orderstats.OrderValidationCode.TOTAL_INCORRECT.name()
-                        );
-                    }
-                }
-
-                // Order matched with multiple restaurants
-                if (matchingOpenRestaurants.size() > 1) {
+            // (3) Evaluate validation result based on matching restaurants and price
+            if (matchingOpenRestaurants.isEmpty()) {
+                if (!dayOpen) {
                     return new OrderValidationResult(
                             Orderstats.OrderStatus.INVALID.name(),
-                            Orderstats.OrderValidationCode.PIZZA_FROM_MULTIPLE_RESTAURANTS.name()
+                            Orderstats.OrderValidationCode.RESTAURANT_CLOSED.name()
+                    );
+                } else if (dayOpen && !pizzasOk) {
+                    return new OrderValidationResult(
+                            Orderstats.OrderStatus.INVALID.name(),
+                            Orderstats.OrderValidationCode.PIZZA_NOT_DEFINED.name()
+                    );
+                } else if (!priceMatch) {
+                    return new OrderValidationResult(
+                            Orderstats.OrderStatus.INVALID.name(),
+                            Orderstats.OrderValidationCode.PRICE_FOR_PIZZA_INVALID.name()
+                    );
+                } else {
+                    return new OrderValidationResult(
+                            Orderstats.OrderStatus.INVALID.name(),
+                            Orderstats.OrderValidationCode.TOTAL_INCORRECT.name()
                     );
                 }
+            }
 
-                // Exactly one matched restaurant
+            // (4) Order matched with multiple restaurants
+            if (matchingOpenRestaurants.size() > 1) {
                 return new OrderValidationResult(
-                        Orderstats.OrderStatus.VALID.name(),
-                        Orderstats.OrderValidationCode.NO_ERROR.name(),
-                        matchingOpenRestaurants
+                        Orderstats.OrderStatus.INVALID.name(),
+                        Orderstats.OrderValidationCode.PIZZA_FROM_MULTIPLE_RESTAURANTS.name()
                 );
             }
 
+            // (5) Exactly one matched restaurant
+            return new OrderValidationResult(
+                    Orderstats.OrderStatus.VALID.name(),
+                    Orderstats.OrderValidationCode.NO_ERROR.name(),
+                    matchingOpenRestaurants
+            );
+        }
 
-            private boolean isValidCreditCard(creditCardInformation cardInfo) {
+
+
+        private boolean isValidCreditCard(creditCardInformation cardInfo) {
                 if (!cardInfo.creditCardNumber.matches("\\d{16}")) {
                     return false;
                 }

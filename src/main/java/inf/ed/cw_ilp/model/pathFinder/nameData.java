@@ -11,6 +11,11 @@ public class nameData {
         public String name;
         public Position[] vertices;
 
+        public NamedRegion(String name, Position[] positions) {
+            this.name = name;
+            this.vertices = positions;
+        }
+
         public Position[] getCoordinates() {
             return vertices;
         }

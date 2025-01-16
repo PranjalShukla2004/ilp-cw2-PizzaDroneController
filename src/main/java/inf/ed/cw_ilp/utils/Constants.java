@@ -19,4 +19,6 @@ public class Constants {
     public static final Position APPLETON_TOWER = new Position(-3.186874, 55.944494);
 
     public static final int DELIVERY_COST = 100;
+
+    public static final int MAX_DRONE_MOVES = 2000;
 }

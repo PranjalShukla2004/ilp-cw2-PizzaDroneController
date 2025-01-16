@@ -3,9 +3,9 @@ package inf.ed.cw_ilp.controller;
 import inf.ed.cw_ilp.api.DynamicDataService;
 import inf.ed.cw_ilp.api.LngLatAPI;
 import inf.ed.cw_ilp.api.OrderValidation;
+import inf.ed.cw_ilp.model.Regions.Position;
 import inf.ed.cw_ilp.model.Regions.Region;
 import inf.ed.cw_ilp.model.pathFinder.*;
-import inf.ed.cw_ilp.model.Regions.Position;
 import inf.ed.cw_ilp.model.Regions.Requests;
 import inf.ed.cw_ilp.model.orderRelated.Order;
 import inf.ed.cw_ilp.model.orderRelated.OrderValidationResult;
@@ -16,26 +16,32 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.google.gson.Gson;
 
+
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+
+import static inf.ed.cw_ilp.utils.Constants.APPLETON_TOWER;
 
 @RestController
 @RequestMapping("")
 public class PizzaDroneController {
 
-    private final OrderValidation runrepo;
     private final LngLatAPI LngLatRequest;
     private final DynamicDataService dds;
     private static final Logger log = LoggerFactory.getLogger(PizzaDroneController.class);
+
     public PizzaDroneController(OrderValidation runRepo, LngLatAPI lngLatRequest, DynamicDataService dds) {
-        this.runrepo = runRepo;
         this.LngLatRequest = lngLatRequest;
         this.dds = dds;
     }
 
     // End-Point 1
     @GetMapping("/uuid")
-    String return_id(){
+    String return_id() {
         return "s2427231";
     }
 
@@ -77,7 +83,7 @@ public class PizzaDroneController {
     // End-point 6
     @ResponseStatus(HttpStatus.CREATED)
     @PostMapping("/validateOrder")
-    public ResponseEntity<OrderValidationResult> validateOrder(@RequestBody Order order){
+    public ResponseEntity<OrderValidationResult> validateOrder(@RequestBody Order order) {
         OrderValidation.OrderValidationService validationService = new OrderValidation.OrderValidationService(dds);
         OrderValidationResult result = validationService.validateOrder(order);
         if (result.orderStatus.equals(Orderstats.OrderStatus.INVALID.name())) {
@@ -124,8 +130,7 @@ public class PizzaDroneController {
         Position start = matchedRestaurant.getLocation();
 
         // 7) The end is Appleton
-        Position end = new Position(Constants.APPLETON_TOWER.lng(),
-                Constants.APPLETON_TOWER.lat());
+        Position end = APPLETON_TOWER;
 
         // 8) Build A_Star, run it
         A_Star aStar = new A_Star(start, end, centralArea, noFlyZones);
@@ -141,57 +146,80 @@ public class PizzaDroneController {
         return ResponseEntity.ok(path);
     }
 
-//    @PostMapping("/calcDeliveryPathAsGeoJson")
-//    public ResponseEntity<String> calcDeliveryPathAsGeoJson(@RequestBody Order jsonRequest) {
-//        try {
-//            // Call the calcDeliveryPath method to get the delivery path
-//            ResponseEntity<Position[]> pathResponse = calcDeliveryPath(jsonRequest);
-//            Position[] path = pathResponse.getBody();
-//
-//            // If no path, return a bad request
-//            if (path == null || path.length == 0) {
-//                return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
-//            }
-//
-//            // List to store unique path coordinates
-//            List<double[]> pathCoordinates = new ArrayList<>();
-//
-//            // Filter the path to remove duplicates (hovering steps)
-//            for (int i = 0; i < path.length; i++) {
-//                if (i == 0 || !path[i].equals(path[i - 1])) {
-//                    pathCoordinates.add(new double[]{path[i].lng(), path[i].lat()});
-//                }
-//            }
-//
-//            // Build the GeoJSON structure
-//            Map<String, Object> pathFeature = new HashMap<>();
-//            pathFeature.put("type", "Feature");
-//
-//            Map<String, Object> pathGeometry = new HashMap<>();
-//            pathGeometry.put("type", "LineString");
-//            pathGeometry.put("coordinates", pathCoordinates);
-//
-//            pathFeature.put("geometry", pathGeometry);
-//            pathFeature.put("properties", Map.of(
-//                    "type", "DeliveryPath",
-//                    "stroke", "#0000FF" // You can change the stroke color if necessary
-//            ));
-//
-//            Map<String, Object> geoJson = new HashMap<>();
-//            geoJson.put("type", "FeatureCollection");
-//
-//            List<Map<String, Object>> features = new ArrayList<>();
-//            features.add(pathFeature);
-//            geoJson.put("features", features);
-//
-//            // Convert the GeoJSON map to a JSON string
-//            String geoJsonString = new Gson().toJson(geoJson);
-//
-//            // Return the GeoJSON string
-//            return new ResponseEntity<>(geoJsonString, HttpStatus.OK);
-//
-//        } catch (Exception e) {
-//            // Return an error response in case of any exception
-//            return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
-//        }
+    @ResponseStatus(HttpStatus.CREATED)
+    @PostMapping("/calcDeliveryPathAsGeoJson")
+    public ResponseEntity<?> calcDeliveryPathAsGeoJson(@RequestBody Order order) {
+        try {
+            // Call the calcDeliveryPath method to get the delivery path
+            ResponseEntity<?> pathResponse = calcDeliveryPath(order);
+            OrderValidation.OrderValidationService validationService =
+                    new OrderValidation.OrderValidationService(dds);
+            OrderValidationResult validationResult = validationService.validateOrder(order);
+
+            // 2) If invalid, return 400
+            if (validationResult.orderStatus.equals(Orderstats.OrderStatus.INVALID.name())) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(validationResult);
+            }
+
+            // Log the entire response
+            log.info("Path Response: {}", pathResponse);
+            log.info("Path Body: {}", pathResponse.getBody());
+
+            // Check if response body is an instance of ArrayList<Position>
+            if (pathResponse.getBody() instanceof List) {
+                List<Position> pathList = (List<Position>) pathResponse.getBody();  // Cast to List<Position>
+                log.info("The correct path is: {}", pathList);
+
+                if (pathList == null || pathList.isEmpty()) {
+                    return new ResponseEntity<>(HttpStatus.BAD_REQUEST); // If path is empty or null, return a 400
+                }
+
+                // List to store unique path coordinates
+                List<double[]> pathCoordinates = new ArrayList<>();
+
+                // Filter the path to remove duplicates (hovering steps)
+                for (int i = 0; i < pathList.size(); i++) {
+                    if (i == 0 || !pathList.get(i).equals(pathList.get(i - 1))) {
+                        pathCoordinates.add(new double[]{pathList.get(i).lng(), pathList.get(i).lat()});
+                    }
+                }
+
+                // Build the GeoJSON structure
+                Map<String, Object> pathFeature = new HashMap<>();
+                pathFeature.put("type", "Feature");
+
+                Map<String, Object> pathGeometry = new HashMap<>();
+                pathGeometry.put("type", "LineString");
+                pathGeometry.put("coordinates", pathCoordinates);
+
+                pathFeature.put("geometry", pathGeometry);
+                pathFeature.put("properties", Map.of(
+                        "type", "DeliveryPath",
+                        "stroke", "#000000"
+                ));
+
+                Map<String, Object> geoJson = new HashMap<>();
+                geoJson.put("type", "FeatureCollection");
+
+                List<Map<String, Object>> features = new ArrayList<>();
+                features.add(pathFeature);
+                geoJson.put("features", features);
+
+                // Convert the GeoJSON map to a JSON string
+                String geoJsonString = new Gson().toJson(geoJson);
+
+                // Return the GeoJSON string
+                return new ResponseEntity<>(geoJsonString, HttpStatus.OK);
+            } else {
+                log.error("Unexpected response body type: {}", pathResponse.getBody().getClass().getName());
+                return new ResponseEntity<>(HttpStatus.BAD_REQUEST); // If response is not a list, return 400
+            }
+
+        } catch (Exception e) {
+            log.error("Exception occurred while processing GeoJSON: {}", e.getMessage());
+            return new ResponseEntity<>(HttpStatus.BAD_REQUEST); // Return 400 in case of exception
+        }
     }
+
+
+}
