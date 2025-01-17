@@ -28,7 +28,7 @@ public class A_Star {
     }
 
     public List<Position> calculatePath() {
-        PriorityQueue<Node> openSet = new PriorityQueue<>(Comparator.comparingDouble(Node::getF));
+        PriorityQueue<Node> openSet = new PriorityQueue<>(Comparator.comparingDouble(Node::get_final_cost));
         Map<Position, Node> Nodes = new HashMap<>();
         boolean inCentralArea = false;
 

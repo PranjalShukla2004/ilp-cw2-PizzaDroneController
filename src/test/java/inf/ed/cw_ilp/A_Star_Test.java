@@ -1,130 +1,160 @@
 package inf.ed.cw_ilp;
 
+import static org.junit.jupiter.api.Assertions.*;
+
 import inf.ed.cw_ilp.api.LngLatAPI;
 import inf.ed.cw_ilp.model.Regions.Position;
 import inf.ed.cw_ilp.model.pathFinder.A_Star;
-import inf.ed.cw_ilp.model.pathFinder.Node;
 import inf.ed.cw_ilp.model.pathFinder.nameData;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import java.util.*;
 
-import java.util.List;
-
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-
-@ExtendWith(MockitoExtension.class)
 public class A_Star_Test {
 
-    @Test
-    public void testValidPath() {
-        // Setup mock LngLatAPI
-        LngLatAPI lngLatAPI = mock(LngLatAPI.class);
+    private Position start;
+    private Position end;
+    private nameData.NamedRegion centralArea;
+    private List<nameData.NamedRegion> noFlyZones;
+    private A_Star aStar;
 
-        // Mock responses for next position and distance calculation
-        when(lngLatAPI.nextPosition(any())).thenReturn(new Position(-3.19128692150116, 55.9455351525177));
-        when(lngLatAPI.calculateDistance(any())).thenReturn(new ResponseEntity<>(100.0, HttpStatus.OK));
+    @BeforeEach
+    public void setup() {
 
-        // Setup sample data
-        Position start = new Position(-3.192473, 55.946233);
-        Position end = new Position(-3.188476, 55.943389);
-        nameData.NamedRegion centralArea = new nameData.NamedRegion("central", new Position[]{start, end});
-        List<nameData.NamedRegion> noFlyZones = List.of();
+        start = new Position(0, 0);
+        end = new Position(10, 10);
 
-        A_Star aStar = new A_Star(start, end, centralArea, noFlyZones);
-        List<Position> path = aStar.calculatePath();
+        // Define central area
+        centralArea = new nameData.NamedRegion("Central", new Position[]{
+                new Position(2, 2),
+                new Position(8, 2),
+                new Position(8, 8),
+                new Position(2, 8)
+        });
 
-        assertNotNull(path);
-        assertFalse(path.isEmpty());
-        assertEquals(path.get(0), start);
-        assertEquals(path.get(path.size() - 1), end);
-    }
-
-    @Test
-    public void testNoPathFound() {
-        // Setup mock LngLatAPI
-        LngLatAPI lngLatAPI = mock(LngLatAPI.class);
-
-        // Mock responses for next position and distance calculation
-        when(lngLatAPI.nextPosition(any())).thenReturn(new Position(-3.19128692150116, 55.9455351525177));
-        when(lngLatAPI.calculateDistance(any())).thenReturn(new ResponseEntity<>(100.0, HttpStatus.OK));
-
-        // Setup sample data with an unreachable end point
-        Position start = new Position(-3.192473, 55.946233);
-        Position end = new Position(-10.000000, 55.946233);  // Out of bounds
-        nameData.NamedRegion centralArea = new nameData.NamedRegion("central", new Position[]{start, end});
-        List<nameData.NamedRegion> noFlyZones = List.of();
-
-        A_Star aStar = new A_Star(start, end, centralArea, noFlyZones);
-        List<Position> path = aStar.calculatePath();
-
-        assertTrue(path.isEmpty());
-    }
-
-    @Test
-    public void testIsValidMoveWithNoFlyZone() {
-        // Setup mock LngLatAPI
-        LngLatAPI lngLatAPI = mock(LngLatAPI.class);
-
-        // Setup sample data
-        Position start = new Position(-3.192473, 55.946233);
-        Position nextPosition = new Position(-3.19128692150116, 55.9455351525177);
-
-        nameData.NamedRegion centralArea = new nameData.NamedRegion("central", new Position[]{start, nextPosition});
-        List<nameData.NamedRegion> noFlyZones = List.of(new nameData.NamedRegion("noFlyZone", new Position[] {
-                new Position(-3.19128692150116, 55.9455351525177),
-                new Position(-3.190000, 55.944000)
+        // Define no-fly zones
+        noFlyZones = new ArrayList<>();
+        noFlyZones.add(new nameData.NamedRegion("NoFlyZone1", new Position[]{
+                new Position(4, 4),
+                new Position(6, 4),
+                new Position(6, 6),
+                new Position(4, 6)
         }));
 
-        A_Star aStar = new A_Star(start, nextPosition, centralArea, noFlyZones);
-
-        // Test if the next position is valid move considering no-fly zones
-        when(lngLatAPI.isPointInRegion(nextPosition, noFlyZones.get(0))).thenReturn(true);
-
-        boolean validMove = aStar.isValidMove(true, nextPosition, true, lngLatAPI);
-        assertFalse(validMove);  // The move should be invalid due to no-fly zone
+        aStar = new A_Star(start, end, centralArea, noFlyZones);
     }
 
     @Test
-    public void testNodePriorityComparator() {
-        // Setup mock nodes with different net cost
-        // Ensure the Position constructor expects lng and lat
-        Position position1 = new Position(-3.19128692150116, 55.9455351525177);
-        Position position2 = new Position(-3.188476, 55.943389);
+    public void testPathExistsWithoutNoFlyZones() {
+        // Simple test with no obstacles
+        noFlyZones.clear();
+        aStar = new A_Star(start, end, centralArea, noFlyZones);
 
-        // Initialize nodes with the correct Position objects
-        Node node1 = new Node(null, position1, 5, 10, 0.0);
-        Node node2 = new Node(null, position2, 3, 7, 0.0);
+        List<Position> path = aStar.calculatePath();
+        assertNotNull(path, "Path should not be null.");
+        assertFalse(path.isEmpty(), "Path should not be empty.");
+        assertEquals(start, path.get(0), "Path should start at the start position.");
+        assertEquals(end, path.get(path.size() - 1), "Path should end at the end position.");
+    }
 
-        A_Star.NodePriorityComparator comparator = new A_Star.NodePriorityComparator();
+    @Test
+    public void testPathAvoidsNoFlyZones() {
+        // Path should avoid no-fly zones
+        List<Position> path = aStar.calculatePath();
+        assertNotNull(path, "Path should not be null.");
+        assertFalse(path.isEmpty(), "Path should not be empty.");
 
-        // Test the comparator behavior
-        assertTrue(comparator.compare(node1, node2) > 0);
+        for (Position position : path) {
+            for (nameData.NamedRegion noFlyZone : noFlyZones) {
+                assertFalse(isInsideRegion(position, noFlyZone), "Path should not enter no-fly zones.");
+            }
+        }
+    }
+
+    @Test
+    public void testPathStaysInCentralArea() {
+        // Path should stay within the central area if entered
+        aStar = new A_Star(start, new Position(5, 5), centralArea, noFlyZones);
+
+        List<Position> path = aStar.calculatePath();
+        assertNotNull(path, "Path should not be null.");
+
+        boolean enteredCentralArea = false;
+        for (Position position : path) {
+            if (isInsideRegion(position, centralArea)) {
+                enteredCentralArea = true;
+            }
+            if (enteredCentralArea) {
+                assertTrue(isInsideRegion(position, centralArea), "Once inside the central area, the path should not leave it.");
+            }
+        }
+    }
+
+    @Test
+    public void testNoPathExists() {
+        // Block all possible paths
+        noFlyZones.add(new nameData.NamedRegion("NoFlyZone2", new Position[]{
+                new Position(0, 0),
+                new Position(10, 0),
+                new Position(10, 10),
+                new Position(0, 10)
+        }));
+
+        List<Position> path = aStar.calculatePath();
+        assertTrue(path.isEmpty(), "Path should be empty when no valid path exists.");
+    }
+
+    @Test
+    public void testDirectPathWhenNoObstacles() {
+        // Test direct path when no obstacles are present
+        noFlyZones.clear();
+        centralArea = new nameData.NamedRegion("Central", new Position[]{});
+        aStar = new A_Star(start, end, centralArea, noFlyZones);
+
+        List<Position> path = aStar.calculatePath();
+        assertNotNull(path, "Path should not be null.");
+        assertTrue(path.size() > 1, "Path should have multiple positions.");
+        assertEquals(start, path.get(0), "Path should start at the start position.");
+        assertEquals(end, path.get(path.size() - 1), "Path should end at the end position.");
+    }
+
+    @Test
+    public void testPathWithMultipleNoFlyZones() {
+        // Add additional no-fly zones and test path avoidance
+        noFlyZones.add(new nameData.NamedRegion("NoFlyZone2", new Position[]{
+                new Position(7, 7),
+                new Position(9, 7),
+                new Position(9, 9),
+                new Position(7, 9)
+        }));
+
+        List<Position> path = aStar.calculatePath();
+        assertNotNull(path, "Path should not be null.");
+        for (Position position : path) {
+            for (nameData.NamedRegion noFlyZone : noFlyZones) {
+                assertFalse(isInsideRegion(position, noFlyZone), "Path should avoid all no-fly zones.");
+            }
+        }
+    }
+
+    @Test
+    public void testPathWithStartAndEndInsideCentralArea() {
+        // Test when start and end points are inside the central area
+        start = new Position(3, 3);
+        end = new Position(7, 7);
+        aStar = new A_Star(start, end, centralArea, noFlyZones);
+
+        List<Position> path = aStar.calculatePath();
+        assertNotNull(path, "Path should not be null.");
+        assertFalse(path.isEmpty(), "Path should not be empty.");
+        for (Position position : path) {
+            assertTrue(isInsideRegion(position, centralArea), "Path should remain within the central area.");
+        }
     }
 
 
-
-    @Test
-    public void testConstructPath() {
-        // Setup mock nodes
-        Position start = new Position(-3.192473, 55.946233);
-        Position end = new Position(-3.188476, 55.943389);
-        Node node1 = new Node(null, start, 0, 10, 0.0);
-        Node node2 = new Node(node1, end, 10, 5, 0.0);
-
-        A_Star aStar = new A_Star(start, end, new nameData.NamedRegion("central", new Position[]{start, end}), List.of());
-
-        // Construct the path
-        List<Position> path = aStar.constructPath(node2);
-
-        // Check the expected path order
-        assertEquals(2, path.size());
-        assertEquals(start, path.get(0));
-        assertEquals(end, path.get(1));
+    private boolean isInsideRegion(Position position, nameData.NamedRegion region) {
+        LngLatAPI api = new LngLatAPI();
+        return api.isPointInRegion(position, region);
     }
 }

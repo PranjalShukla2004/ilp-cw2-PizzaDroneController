@@ -7,14 +7,14 @@ public class Node {
     private Node parent;
     private double start_cost; // Cost from start
     private double heuristic_cost; // Heuristic to end
-    private double f; // f = g + h
+    private double final_cost; // f = g + h
 
     public Node(Position position, Node parent, double start_cost, double heuristic_cost) {
         this.position = position;
         this.parent = parent;
         this.start_cost = start_cost;
         this.heuristic_cost = heuristic_cost;
-        this.f = start_cost + heuristic_cost;
+        this.final_cost = start_cost + heuristic_cost;
     }
 
     public Position getPosition() {
@@ -27,7 +27,7 @@ public class Node {
 
     public void set_start_cost(double g) {
         this.start_cost = g;
-        this.f = this.start_cost + this.heuristic_cost;
+        this.final_cost = this.start_cost + this.heuristic_cost;
     }
 
     public double get_heuristic_cost() {
@@ -36,11 +36,11 @@ public class Node {
 
     public void set_heuristic_cost(double heuristic_cost) {
         this.heuristic_cost = heuristic_cost;
-        this.f = this.start_cost + this.heuristic_cost;
+        this.final_cost = this.start_cost + this.heuristic_cost;
     }
 
-    public double getF() {
-        return f;
+    public double get_final_cost() {
+        return final_cost;
     }
 
     public Node getParent() {
