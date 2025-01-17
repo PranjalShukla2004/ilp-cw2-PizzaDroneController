@@ -93,11 +93,10 @@ public class LngLatAPI {
         double startLat = request.start().lat();
         double angle = request.angle();
 
-        // Normalize angle to [0, 360)
-        while (angle < 0) {
-            angle += 360;
+        // Enforce angle to be within [0, 360]
+        if (angle < 0 || angle > 360) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).build();
         }
-        angle = angle % 360;
 
         if (Constants.VALID_ANGLES.contains(angle)) {
             double angleInRadians = Math.toRadians(angle);
@@ -115,9 +114,23 @@ public class LngLatAPI {
 
     //End-point 5
     // End-point to check if a given position is within the central-area
-    public boolean isInsideRegion(Position position, Region region) {
-        Position[] vertices = region.vertices();
-        return isPointInsidePolygon(position, vertices);
+    public ResponseEntity<Boolean> isInsideRegion(Position position, Region region) {
+        try {
+            if (position == null || region == null) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
+            }
+
+            Position[] vertices = region.vertices();
+            if (vertices == null || vertices.length == 0) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
+            }
+
+            boolean result = isPointInsidePolygon(position, vertices);
+            return ResponseEntity.ok(result);
+
+        } catch (NoSuchMethodError | NullPointerException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
+        }
     }
 
     public boolean isPointInRegion(Position position, nameData.NamedRegion region) {

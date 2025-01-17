@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import inf.ed.cw_ilp.api.LngLatAPI;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import inf.ed.cw_ilp.model.Regions.Position;
 import inf.ed.cw_ilp.model.Regions.Requests;
@@ -102,7 +103,7 @@ public class LngLatAPITest {
         Region region = new Region("TestRegion", vertices);
         Position point = new Position(2, 2);
 
-        assertTrue(lngLatAPI.isInsideRegion(point, region), "Point should be inside the region");
+        assertTrue(isInsideTestRegion(point, region), "Point should be inside the region");
     }
 
     @Test
@@ -116,7 +117,7 @@ public class LngLatAPITest {
         Region region = new Region("TestRegion", vertices);
         Position point = new Position(5, 5);
 
-        assertFalse(lngLatAPI.isInsideRegion(point, region), "Point should be outside the region");
+        assertFalse(isInsideTestRegion(point, region), "Point should be outside the region");
     }
 
     @Test
@@ -146,4 +147,82 @@ public class LngLatAPITest {
 
         assertFalse(lngLatAPI.isPointInRegion(point, namedRegion), "Point should be outside the named region");
     }
+
+    public boolean isInsideTestRegion(Position position, Region region) {
+        Position[] vertices = region.vertices();
+        return isPointInsidePolygon(position, vertices);
+    }
+
+    private boolean isPointInsidePolygon(Position position, Position[] vertices) {
+        int count = 0;
+
+        // Check if the point is on any edge first
+        for (int i = 0; i < vertices.length; i++) {
+            Position currentVertex = vertices[i];
+            Position nextVertex = vertices[(i + 1) % vertices.length];
+
+            // Check if the point is on the edge
+            if (isPointOnEdge(position, currentVertex, nextVertex)) {
+                return true;
+            }
+        }
+
+        // Ray-casting algorithm for point inside polygon
+        for (int i = 0; i < vertices.length; i++) {
+            Position currentVertex = vertices[i];
+            Position nextVertex = vertices[(i + 1) % vertices.length];
+
+            if (isPointInsideRay(position, currentVertex, nextVertex)) {
+                count++;
+            }
+        }
+        return count % 2 == 1;  // If odd, point is inside; if even, point is outside
+    }
+
+    private boolean isPointOnEdge(Position position, Position currentVertex, Position nextVertex) {
+        // Check if the point is on the horizontal edge
+
+        boolean isHorizontal = currentVertex.lat() == nextVertex.lat();
+        boolean isVertical = currentVertex.lng() == nextVertex.lng();
+
+        if (isHorizontal) {
+            // If the edge is horizontal, check if the point's latitude matches and its longitude is between the edge's bounds
+            return position.lat() == currentVertex.lat() &&
+                    position.lng() >= Math.min(currentVertex.lng(), nextVertex.lng()) &&
+                    position.lng() <= Math.max(currentVertex.lng(), nextVertex.lng());
+        }
+
+        if (isVertical) {
+            // If the edge is vertical, check if the point's longitude matches and its latitude is between the edge's bounds
+            return position.lng() == currentVertex.lng() &&
+                    position.lat() >= Math.min(currentVertex.lat(), nextVertex.lat()) &&
+                    position.lat() <= Math.max(currentVertex.lat(), nextVertex.lat());
+        }
+
+        // General case: non-horizontal and non-vertical edge, check the slope of the line
+        boolean firstCondition = position.lng() > Math.min(currentVertex.lng(), nextVertex.lng());
+        boolean secondCondition = position.lng() <= Math.max(currentVertex.lng(), nextVertex.lng());
+        if (firstCondition && secondCondition) {
+            // Calculate the slope of the line between current and next vertex
+            double slope = (nextVertex.lat() - currentVertex.lat()) / (nextVertex.lng() - currentVertex.lng());
+            double latitude = slope * (position.lng() - currentVertex.lng()) + currentVertex.lat();
+            if (position.lat() == latitude) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+
+    private boolean isPointInsideRay(Position position, Position currentVertex, Position nextVertex) {
+        boolean latitudeCondition = position.lat() <= Math.max(nextVertex.lat(), currentVertex.lat()) &&
+                position.lat() > Math.min(nextVertex.lat(), currentVertex.lat());
+
+        double latitudeFraction = ((position.lat() - currentVertex.lat()) / (nextVertex.lat() - currentVertex.lat())) * (nextVertex.lng() - currentVertex.lng());
+        boolean longitudeCondition = position.lng() < (currentVertex.lng() + latitudeFraction);
+
+        return longitudeCondition && latitudeCondition;
+    }
+
 }

@@ -10,7 +10,6 @@ import inf.ed.cw_ilp.model.Regions.Requests;
 import inf.ed.cw_ilp.model.orderRelated.Order;
 import inf.ed.cw_ilp.model.orderRelated.OrderValidationResult;
 import inf.ed.cw_ilp.model.orderRelated.Orderstats;
-import inf.ed.cw_ilp.utils.Constants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -30,12 +29,12 @@ import static inf.ed.cw_ilp.utils.Constants.APPLETON_TOWER;
 @RequestMapping("")
 public class PizzaDroneController {
 
-    private final LngLatAPI LngLatRequest;
+    private final LngLatAPI lnglatAPI;
     private final DynamicDataService dds;
     private static final Logger log = LoggerFactory.getLogger(PizzaDroneController.class);
 
     public PizzaDroneController(OrderValidation runRepo, LngLatAPI lngLatRequest, DynamicDataService dds) {
-        this.LngLatRequest = lngLatRequest;
+        this.lnglatAPI = lngLatRequest;
         this.dds = dds;
     }
 
@@ -47,41 +46,36 @@ public class PizzaDroneController {
 
 
     // End-Point 2
-    @ResponseStatus(HttpStatus.CREATED)
     @PostMapping("/distanceTo")
     public ResponseEntity<Double> returnDistanceTo(@RequestBody Requests.LngLatPairRequest json) {
         // Call the service method to calculate distance
-        ResponseEntity<Double> distance = LngLatRequest.calculateDistance(json);
+        ResponseEntity<Double> distance = lnglatAPI.calculateDistance(json);
         return ResponseEntity.ok(distance.getBody()); // Return HTTP 200 with the distance
     }
 
     // End-point 3
-    @ResponseStatus(HttpStatus.CREATED)
     @PostMapping("/isCloseTo")
     public ResponseEntity<Boolean> returnIsCloseTo(@RequestBody Requests.LngLatPairRequest json) {
-        return LngLatRequest.isCloseTo(json);
+        return lnglatAPI.isCloseTo(json);
 
     }
 
     // End-point 4
-    @ResponseStatus(HttpStatus.CREATED)
     @PostMapping("/nextPosition")
     public ResponseEntity<Position> calNextPos(@RequestBody Requests.LngLatAngleRequest json) {
-        return LngLatRequest.nextPosition(json);
+        return lnglatAPI.nextPosition(json);
 
     }
 
     // End-point 5
-    @ResponseStatus(HttpStatus.CREATED)
     @PostMapping("/isInRegion")
-    public boolean validRegion(@RequestBody Requests.LngLatRegionRequest json) {
+    public ResponseEntity<Boolean> validRegion(@RequestBody Requests.LngLatRegionRequest json) {
         Position position = json.position();
         Region region = json.region();
-        return LngLatRequest.isInsideRegion(position, region);
+        return lnglatAPI.isInsideRegion(position, region);
     }
 
     // End-point 6
-    @ResponseStatus(HttpStatus.CREATED)
     @PostMapping("/validateOrder")
     public ResponseEntity<OrderValidationResult> validateOrder(@RequestBody Order order) {
         OrderValidation.OrderValidationService validationService = new OrderValidation.OrderValidationService(dds);
@@ -93,7 +87,6 @@ public class PizzaDroneController {
 
     }
 
-    @ResponseStatus(HttpStatus.CREATED)
     @PostMapping("/calcDeliveryPath")
     public ResponseEntity<?> calcDeliveryPath(@RequestBody Order order) {
 
