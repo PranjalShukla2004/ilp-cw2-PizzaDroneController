@@ -16,11 +16,17 @@ public class LngLatAPI {
     // Endpoint to calculate the Euclidean distance between two positions
     public ResponseEntity<Double> calculateDistance(Requests.LngLatPairRequest request) {
         // Validate request data and give error if wrong
-        if (request.position1() == null || request.position2() == null) {
+        if (request == null || request.position1() == null || request.position2() == null) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
         }
 
         try {
+            // Validate the keys of the request to ensure proper spelling
+            if (!request.getClass().getDeclaredFields()[0].getName().equals("position1") ||
+                    !request.getClass().getDeclaredFields()[1].getName().equals("position2")) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
+            }
+
             double lng1 = request.position1().lng();
             double lat1 = request.position1().lat();
             double lng2 = request.position2().lng();

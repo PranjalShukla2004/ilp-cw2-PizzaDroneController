@@ -28,7 +28,14 @@ public class nameData {
         private List<String> openingDays;
         private List<Pizza> menu;
 
-            public List<Pizza> getMenu() { return menu; }
+        public Restaurant(String name, Position location, List<String> openingDays, List<Pizza> menu) {
+            this.name = name;
+            this.location = location;
+            this.openingDays = openingDays;
+            this.menu = menu;
+        }
+
+        public List<Pizza> getMenu() { return menu; }
 
         public List<String> getOpeningDays() {
             return openingDays;

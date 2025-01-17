@@ -25,6 +25,14 @@ public class OrderValidationResult {
         this.orderValidationCode = orderValidationCode;
         this.matchedRestaurants = matchedRestaurants;
     }
+
+    public String getStatus() {
+        return orderStatus;
+    }
+
+    public String getValidationCode() {
+        return orderValidationCode;
+    }
 }
 
 
